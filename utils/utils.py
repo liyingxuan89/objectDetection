@@ -1,6 +1,8 @@
+# __*__ coding:utf8 __*__
 import glob
 import math
 import os
+import json
 import random
 import shutil
 import subprocess
@@ -8,7 +10,7 @@ import time
 from copy import copy
 from pathlib import Path
 from sys import platform
-
+import pandas as pd
 import cv2
 import matplotlib
 import matplotlib.pyplot as plt
@@ -19,6 +21,7 @@ import torchvision
 import yaml
 from scipy.signal import butter, filtfilt
 from tqdm import tqdm
+from PIL import Image,ImageDraw,ImageFont
 
 from . import torch_utils  #  torch_utils, google_utils
 
@@ -867,6 +870,41 @@ def apply_classifier(x, model, img, im0):
     return x
 
 
+def status_classifier(x, model, img, im0):
+    # applies a second stage classifier to yolo outputs
+    im0 = [im0] if isinstance(im0, np.ndarray) else im0
+    for i, d in enumerate(x):  # per image
+        if d is not None and len(d):
+            d = d.clone()
+
+            # Reshape and pad cutouts
+            b = xyxy2xywh(d[:, :4])  # boxes
+            b[:, 2:] = b[:, 2:].max(1)[0].unsqueeze(1)  # rectangle to square
+            b[:, 2:] = b[:, 2:] * 1.3 + 30  # pad
+            d[:, :4] = xywh2xyxy(b).long()
+
+            # Rescale boxes from img_size to im0 size
+            scale_coords(img.shape[2:], d[:, :4], im0[i].shape)
+            # Classes
+            ims = []
+            for j, a in enumerate(d):  # per item
+                cutout = im0[i][int(a[1]):int(a[3]), int(a[0]):int(a[2])]
+                im = cv2.resize(cutout, (224, 224))  # BGR
+                # cv2.imwrite('test%i.jpg' % j, cutout)
+
+                im = im[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
+                im = np.ascontiguousarray(im, dtype=np.float32)  # uint8 to float32
+                im /= 255.0  # 0 - 255 to 0.0 - 1.0
+                ims.append(im)
+
+            pred_cls = model(torch.Tensor(ims).to(d.device)).argmax(1)  # classifier prediction
+
+            for k, p in enumerate(pred_cls):
+                x[i][k, 4] = p
+
+    return x
+
+
 def fitness(x):
     # Returns fitness (for use with results.txt or evolve.txt)
     w = [0.0, 0.0, 0.1, 0.9]  # weights for [P, R, mAP@0.5, mAP@0.5:0.95]
@@ -913,7 +951,7 @@ def butter_lowpass_filtfilt(data, cutoff=1500, fs=50000, order=5):
 
 def plot_one_box(x, img, color=None, label=None, line_thickness=None):
     # Plots one bounding box on image img
-    tl = line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
+    tl = line_thickness or round(0.001 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
     color = color or [random.randint(0, 255) for _ in range(3)]
     c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
     cv2.rectangle(img, c1, c2, color, thickness=tl, lineType=cv2.LINE_AA)
@@ -1206,3 +1244,307 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=()):  # from utils.ut
     fig.tight_layout()
     ax[1].legend()
     fig.savefig('results.png', dpi=200)
+
+
+def cv2ImgAddText(img, text, left, top, textColor, textSize):
+
+    if isinstance(img, np.ndarray):
+        img=Image.fromarray(cv2.cvtColor(img,cv2.COLOR_BGR2RGB))
+
+    draw = ImageDraw.Draw(img)
+    ttf = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
+
+    font_style = ImageFont.truetype(ttf, textSize, encoding="utf-8")
+    draw.text((left, top), text, textColor, font=font_style)
+    imgx = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
+    return imgx
+
+
+def save_notes(save_path, res_dict):
+    with open(save_path, 'a') as f:
+        f.write(time.strftime("%Y%m%d%H%M%S")+"|"+json.dumps(res_dict)+"\n")
+
+
+def violation_detection(img, scenario="sensor", detections=None, names=None, parameters=None):
+
+    use_function = eval(scenario + "_detection")
+    res, detections, imgx = use_function(img, detections, names, parameters)
+    return res, detections, imgx
+
+
+def sensor_detection(img, detections, names, parameters=None):
+    """
+    :param img: current frame
+    :param detections: current detections like [x,y,x,y,prob,cls]
+    :param names: name filed of current filed
+    """
+    res = {"violation": False, "传感器位置错误": False, "无传感器": False, "传感器数目不足": False,
+           "无支柱": False, "支柱过少": False,
+           "传感器离顶过近": False, "传感器离墙过近": False, "传感器悬挂过低": False,
+           "传感器离主力支柱过近": False}
+    #detections = detections[detections[:,-2] >=0.6]
+    #imgx = cv2ImgAddText(img, "测试文字.", 0, 0, (255, 0, 0), 50)
+    num_sensor, num_pillar = 0, 0
+    for c in detections[:, -1].unique():
+        n = (detections[:, -1] == c).sum()  # detections per class
+        if names[int(c)] == "sensor":
+            num_sensor = n
+            if 0 < num_sensor < 3:
+                # cv2.putText(img, "No Enough Sensor Detected.", (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+                img = cv2ImgAddText(img, "警告：传感器数目不足.", 100, 100, (255, 0, 0), 50)
+                res["violation"] = True
+                res["无传感器"] = True
+
+        elif names[int(c)] == "pillar":
+            num_pillar = n
+            #cv2.putText(img, "{} Pillars Detected.".format(num_pillar), (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+            if 0 < num_pillar < 2:
+                res["violation"] = True
+                res["支柱过少"] = True
+                # cv2.putText(img, "No Enough Supporting Pillars.", (100, 400), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+                img = cv2ImgAddText(img, "支撑柱不足.", 100, 300, (255, 0, 0), 50)
+            else:
+                pass
+
+    if num_sensor == 0:
+        # cv2.putText(img, "Warning : No Sensor Detected.", (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+        img = cv2ImgAddText(img, "警告 : 未检测到传感器.", 100, 100, (255, 0, 0), 50)
+        res["violation"] = True
+        res["无传感器"] = True
+
+    if num_sensor > 2:
+        # get the most likely two sensor
+        class_num = 1000
+        for each in detections[:, -1].unique():
+            if names[int(each)] == "sensor":
+                class_num = int(each)
+                break
+
+        p1 = detections[detections[:, -1] == class_num]
+        p2 = detections[detections[:, -1] != class_num]
+        p1 = p1[p1[:, -2].argsort()][-2:, :]
+        if len(p2) > 0:
+            detections = torch.cat([p1, p2], axis=0)
+
+    if num_pillar == 0:
+        res["violation"] = True
+        res["无支柱"] = True
+        img = cv2ImgAddText(img, "未检测到支撑柱.", 100, 300, (255, 0, 0), 50)
+        #cv2.putText(img, "No Supporting Pillar Detected.".format(n), (100, 400), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+
+    det = detections.cpu().data.numpy()
+    det_x = det[det[:, 0].argsort()]
+    #det_y = det[det[:, 1].argsort()]
+    max_x = 0
+    for c in det_x:
+        if names[int(c[-1])] == "pillar":
+            if c[2] > max_x:
+                max_x = c[2]
+
+    for c in det_x:
+        if names[int(c[-1])] != "sensor":
+            continue
+        if c[1] < 50:
+            res["violation"] = True
+            # cv2.putText(img, "Sensor is too close to ceiling.", (100, 500), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+            img = cv2ImgAddText(img, "传感器位置离顶部过近.", 100, 500, (255, 0, 0), 50)
+            res["传感器离顶过近"] = True
+            res["传感器位置错误"] = True
+        if c[1] > 500:
+            res["violation"] = True
+            # cv2.putText(img, "Sensor is hanging too low.", (100, 600), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+            img = cv2ImgAddText(img, "传感器悬挂过低.", 100, 500, (255, 0, 0), 50)
+            res["传感器悬挂过低"] = True
+            res["传感器位置错误"] = True
+
+        if c[0] < 250:
+            res["violation"] = True
+            # cv2.putText(img, "Sensor is too close to the left wall.", (100, 700), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+            img = cv2ImgAddText(img, "传感器位置离左墙面过近.", 100, 500, (255, 0, 0), 50)
+            res["传感器离墙过近"] = True
+            res["传感器位置错误"] = True
+
+        if max_x > 1700 and max_x - c[2] < 300:
+            res["violation"] = True
+            # cv2.putText(img, "Sensor is too close to the main_pillar.", (100, 700), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+            img = cv2ImgAddText(img, "传感器离右侧主液压支柱过近.", 100, 500, (255, 0, 0), 50)
+            res["传感器离主力支柱过近"] = True
+            res["传感器位置错误"] = True
+
+    return res, detections, img
+
+
+def waterlevel_detection(img, detections):
+    #cv2.putText(img, "WARNING: No Sensor Detected.", (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+    pass
+
+
+def beam_detection(img, detections, names, parameters=None):
+
+    res = {"violation": False, "无前探梁": False, "前探梁数目不足": False}
+
+    num_beam = 0
+    for c in detections[:, -1].unique():
+        n = (detections[:, -1] == c).sum()
+        if names[int(c)] == "beam":
+            num_beam = n
+            if 0 < n < parameters["numLower"]:
+                # cv2.putText(img, "Attention : {} beams Detected. {} more beams needed.".format(n, 4-n), (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+                img = cv2ImgAddText(img, "注意:检测到前探梁不足4根.", 100, 100, (255, 0, 0), 2)
+                res["violation"] = True
+                res["前探梁数目不足"] = True
+            else:
+                img = cv2ImgAddText(img, "检测到{}根前探梁.".format(n), 100, 300, (255, 0, 0), 50)
+        # num_helmet, num_worker = 0, 0
+        # if names[int(c)] == "helmet":
+        #     num_helmet = n
+        # if names[int(c)] == "worker":
+        #     num_worker = n
+
+        # if num_worker > 0 and num_helmet < num_worker-1:
+        #     cv2.putText(img, "Warning: helmet unwearing.", (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+        #     res["helmet_unwear"] = True
+
+    det = detections.cpu().data.numpy()
+    det_x = det[det[:, 0].argsort()]
+    for c in det_x:
+        if names[int(c[-1])] == "beam":
+            if c[2] - c[0] < 50 and c[3] - c[1] > 100:
+                img = cv2ImgAddText(img, "提示：前探梁可能未正确安装.", 100, 500, (255, 0, 0), 50)
+        else:
+            continue
+
+    if num_beam == 0:
+        img = cv2ImgAddText(img, "暂未检测到前探梁.", 100, 700, (255, 0, 0), 50)
+        res["violation"] = True
+        res["无前探梁"] = True
+
+    return res, detections, img
+
+
+def rock_detection(img, detections, names, parameters=None):
+    res = {"violation": False, "大型煤块": False}
+    num_rock = 0
+    for c in detections[:, -1].unique():
+        n = (detections[:, -1] == c).sum()
+        if names[int(c)] == "rock":
+            num_rock = n
+            res["violation"] = True
+            res["大型煤块"] = True
+            img = cv2ImgAddText(img, "提示：检测到{}个大煤块.".format(num_rock), 100, 500, (255, 0, 0), 50)
+            #cv2.putText(img, "Warning : {} big rock detected.".format(num_rock), (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+
+    return res, detections, img
+
+
+def damper_detection(img, detections, names, parameters=None):
+
+    res = {"violation": False, "没有风门": False, "风门打开": False}
+    num_damper = 0
+    for c in detections[:, -1].unique():
+        n = (detections[:, -1] == c).sum()
+        if names[int(c)] == "damper":
+            num_damper = n
+
+    if num_damper == 0:
+        res["violation"] = True
+        #cv2.putText(img, "Warning : No damper Detected.", (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+        img = cv2ImgAddText(img, "提示：没有检测到风门.", 100, 300, (255, 0, 0), 50)
+    else:
+        for o_or_c in detections[:, -2]:
+            if o_or_c == 0:
+                res["violation"] = True
+                res["风门打开"] = True
+                #cv2.putText(img, "Warning : Damper is Open.", (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+                img = cv2ImgAddText(img, "提示：风门打开.", 100, 500, (255, 0, 0), 50)
+
+    return res, detections, img
+
+
+def parse_violation_res(res_json, scenario="sensor", parameters=None):
+
+    # get csv file
+    df = pd.read_csv(res_json, names=['time', 'info'], delimiter="|")
+    df['info'] = df['info'].apply(lambda x: json.loads(x))
+    for name in df['info'][0].keys():
+        # print(name)
+        df[name] = [x[name] for x in df['info'] if name in x]
+    df.drop('info', axis=1, inplace=True)
+
+    if scenario == "waterlevel":
+        timelimit = float(parameters["timelimit"])
+        res = {}
+        Flag = df.sum()['violation'] > timelimit*1440
+        if Flag:
+            res["violation"] = "yes"
+            res["水位超标"] = 1
+        else:
+            res['violation'] = "no"
+        return json.dumps(res)
+
+    if scenario == "rock":
+        res = {}
+        portion = df.sum()['violation'] / 14400
+        if portion > 0.5:
+            res["violation"] = "yes"
+            res["大型煤块"] = portion
+        else:
+            res['violation'] = "no"
+        return json.dumps(res)
+
+    if scenario == "damper":
+        timelimit = float(parameters["timelimit"])
+        res = {}
+        portion = df.sum()['violation'] > timelimit*1440
+        if portion > 0.5:
+            res["violation"] = "yes"
+            res["open"] = portion
+        else:
+            res['violation'] = "no"
+        return json.dumps(res)
+
+    if scenario == "beam":
+        df = pd.read_csv(res_json, names=["time", "info"], delimeter="|")
+        df["info"] = df["info"].apply(lambda x: json.loads(x))
+        res = {}
+        portion = len(df) / 2880
+        if portion > 0.8:
+            res["violation"] = "yes"
+        else:
+            res["violation"] = "no"
+        return json.dumps(res)
+
+    if scenario == "sensor":
+        df = pd.read_csv(res_json, names=['time', 'info'], delimiter="|")
+        df["info"] = df["info"].apply(lambda x: json.loads(x))
+        for name in ["violation", "传感器位置错误", "无传感器", "传感器数目不足", "无支柱", "支柱过少", "传感器离顶过近", "传感器离墙过近", "传感器悬挂过低", "传感器离主力支柱过近"]:
+            df[name] = [x[name] for x in df["info"]]
+        res = {}
+        portion = df.sum()['violation'] / 14400
+        if portion > 0.5:
+            res['violation'] = "yes"
+        swp = df["传感器位置错误"]
+        df.drop('info', axis=1, inplace=True)
+        df.drop('violation', axis=1, inplace=True)
+        df.drop('time', axis=1, inplace=True)
+        b = df.sum()
+        res = b.div(b.sum())
+        res = res.to_dict()
+        five_percent = int(0.05 * len(swp))
+        if swp.iloc[:five_percent*2].sum() > 0 and swp.iloc[-five_percent:].sum() == 0:
+            res["传感器位置错误"] = 0
+            res["传感器离墙过近"] = 0
+            res["传感器悬挂过低"] = 0
+            res["传感器离顶过近"] = 0
+            res["传感器离主力支柱过近"] = 0
+
+        for each in res:
+            if res[each] > 0:
+                res['violation'] = "yes"
+                break
+
+    return json.dumps(res)
+
+
+
+
