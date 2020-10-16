@@ -12,6 +12,7 @@ def detect(opt):
         opt.output, opt.source, opt.weights, opt.img_size
     parameters = opt.parameters
     webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
+    # TRACKING_NUM = parameters["timelimit"] * 24 * 60
     TRACKING_NUM = opt.record_length
     save_img, view_img, save_txt = False, False, False
 
@@ -146,14 +147,27 @@ def detect(opt):
                     if save_img or view_img:  # Add bbox to image
                         label = '%s %.2f' % (names[int(cls)], conf)
                         #im0 = im0[int(xyxy[1]):int(xyxy[3]), int(xyxy[0]):int(xyxy[2])]
-                        # plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
-            if det is None or len(det) == 0:
-                IS_VIOLATION = True
-                res = {"violation": True}
+                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
 
-            if det is None and scenario == "rock":
-                IS_VIOLATION = False
-                res = {"voilation": False}
+            if det is None or len(det) == 0:
+                if scenario == "sensor":
+                    IS_VIOLATION = True
+                    res = {"violation": True, "传感器位置错误": False, "无传感器": False, "传感器数目不足": False,
+                           "无支柱": False, "支柱过少": False,
+                           "传感器离顶过近": False, "传感器离墙过近": False, "传感器悬挂过低": False,
+                           "传感器离主力支柱过近": False}
+                elif scenario == "rock":
+                    IS_VIOLATION = False
+                    res = {"violation": False, "大型煤块": False}
+
+                elif scenario == "beam":
+                    IS_VIOLATION = True
+                    res = {"violation": True, "无前探梁": False, "前探梁数目不足": False}
+
+                elif scenario == "damper":
+                    IS_VIOLATION = True
+                    res = {"violation": True, "没有风门": True, "风门打开": True}
+
 
             if IS_VIOLATION:
                 Start_tracking = True
@@ -188,7 +202,7 @@ def detect(opt):
                         stream_writer = cv2.VideoWriter(sp, fourcc, fps, (w, h))
                 else:
                     pass
-                if idx % 240 == 0:
+                if idx % 720 == 0:
                     cv2.imwrite(save_path+"_{}_.png".format(idx), im0)
 
             # Save results (image with detections)
@@ -211,7 +225,7 @@ def detect(opt):
                     if IS_VIOLATION:
                         vid_writer.write(im0)
                         save_notes(save_path+".json", res)
-                        if idx % 240 == 0:
+                        if idx % 720 == 0:
                             cv2.imwrite(save_path+"_{}_.png".format(idx), im0)
                         #IS_VIOLATION = False
                     #if evidence_vid_path != evidence_save_path:  # new evidence piece
@@ -242,7 +256,7 @@ if __name__ == '__main__':
     # parser.add_argument('--source', type=str, default='http://183.221.111.158:10810/nvc/jmk/nvc/jmk/hls/stream_1/stream_1_live.m3u8', help='source')  # file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='inference/output/damper', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
-    parser.add_argument('--record_length', type=int, default=720, help='video recording length by frames')
+    parser.add_argument('--record_length', type=int, default=1440*10, help='video recording length by frames')
     parser.add_argument('--online_save_name', type=str, default="test.mp4", help='online video save path')
     parser.add_argument('--camera_id', type=str, default="offline", help='id of a camera')
     parser.add_argument('--conf_thres', type=float, default=0.4, help='object confidence threshold')
