@@ -1457,6 +1457,8 @@ def damper_detection(img, detections, names, parameters=None):
                 res["风门打开"] = True
                 #cv2.putText(img, "Warning : Damper is Open.", (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
                 img = cv2ImgAddText(img, "提示：风门打开.", 100, 500, (255, 0, 0), 50)
+            else:
+                img = cv2ImgAddText(img, "风门正常关闭.", 100, 300, (255, 0, 0), 50)
 
     return res, detections, img
 
