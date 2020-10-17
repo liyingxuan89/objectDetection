@@ -135,6 +135,7 @@ def detect(opt):
                     s += '%g %ss, ' % (n, names[int(c)])  # add to string
 
                 res, det, im0 = violation_detection(im0, scenario=scenario, detections=det, names=names, parameters=parameters)
+                print(res)
                 IS_VIOLATION = res["violation"]
 
                 # Write results
@@ -156,7 +157,7 @@ def detect(opt):
                            "无支柱": False, "支柱过少": False,
                            "传感器离顶过近": False, "传感器离墙过近": False, "传感器悬挂过低": False,
                            "传感器离主力支柱过近": False}
-                elif scenario == "rock":
+                elif scenario == "Huge_rock":
                     IS_VIOLATION = False
                     res = {"violation": False, "大型煤块": False}
 
