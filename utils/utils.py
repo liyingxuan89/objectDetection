@@ -1427,11 +1427,12 @@ def rock_detection(img, detections, names, parameters=None):
     num_rock = 0
     for c in detections[:, -1].unique():
         n = (detections[:, -1] == c).sum()
-        if names[int(c)] == "rock":
+        if names[int(c)] == "Huge_rock":
             num_rock = n
-            res["violation"] = True
-            res["大型煤块"] = True
-            img = cv2ImgAddText(img, "提示：检测到{}个大煤块.".format(num_rock), 100, 500, (255, 0, 0), 50)
+            if num_rock > 0:
+                res["violation"] = True
+                res["大型煤块"] = True
+                img = cv2ImgAddText(img, "提示：检测到{}个大煤块.".format(num_rock), 100, 500, (255, 0, 0), 50)
             #cv2.putText(img, "Warning : {} big rock detected.".format(num_rock), (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
 
     return res, detections, img
@@ -1452,7 +1453,7 @@ def damper_detection(img, detections, names, parameters=None):
         img = cv2ImgAddText(img, "提示：没有检测到风门.", 100, 300, (255, 0, 0), 50)
     else:
         for o_or_c in detections[:, -2]:
-            if o_or_c == 1:
+            if o_or_c == 0:
                 res["violation"] = True
                 res["风门打开"] = True
                 #cv2.putText(img, "Warning : Damper is Open.", (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
@@ -1502,7 +1503,7 @@ def parse_violation_res(res_json, scenario="sensor", parameters=None):
         print(v_cnt, t_l)
         if v_cnt > 600:
             res["violation"] = "yes"
-            res["风门长时间打开"] = 1.0
+            res["风门长时间打开或被遮挡"] = 1.0
         else:
             res['violation'] = "no"
         return json.dumps(res)
