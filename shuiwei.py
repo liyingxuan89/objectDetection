@@ -11,6 +11,7 @@ import argparse
 import imutils
 import random
 import numpy as np
+import warnings
 from PIL import Image,ImageDraw,ImageFont
 
 def cv2ImgAddText(img, text, left, top, textColor, textSize):
@@ -36,7 +37,7 @@ def get_water_level(imageA, imageB):
     #imageA = cv2.imread("C:\\Users\\DEATH\\Desktop\\1.png")
 
     #imageB = cv2.imread("C:\\Users\\DEATH\\Desktop\\2.png")
-    mask = cv2.imread("shuiweix.png")
+    mask = cv2.imread("shuiweix.jpeg")
     #cv2.imwrite("C:\\Users\\DEATH\\Desktop\\m.png",cv2.add(imageA,mask))
     #cv2.imshow("",cv2.add(imageA,mask))
     # convert the images to grayscale
@@ -103,6 +104,7 @@ def water_detect(opt):
 
     #TRACKING_NUM = parameters["timelimit"]*24*60
     TRACKING_NUM = opt.record_length
+    Tracking = TRACKING_NUM
 
     cap = cv2.VideoCapture(opt.source)#获取网络摄像机
     ret, frame = cap.read()
@@ -123,10 +125,15 @@ def water_detect(opt):
     IS_VIOLATION = False
     res = {"violation": False, "水位超标": False}
     while True:
+        warnings.filterwarnings('ignore')
         i += 1
         img_sp = out + "/" + opt.online_save_name + "_{}_.png".format(i)
         #time.sleep(0.5+random.random())
         ret, frame = cap.read()
+        if not ret:
+            cap = cv2.VideoCapture(opt.source)
+            continue
+
         if flag:
             frames[1]=frame
         else :
@@ -150,14 +157,15 @@ def water_detect(opt):
         cv2.imshow("water level", frame)
         start_tracking = True if IS_VIOLATION else False
         if start_tracking :
-            if TRACKING_NUM > 0:
-                TRACKING_NUM -= 1
+            if Tracking > 0:
+                Tracking -= 1
+                print(Tracking)
                 #print(TRACKING_NUM)
                 vid_writer.write(frame)
                 save_notes(sp+".json", res)
             else:
                 # TRACKING_NUM = parameters["timelimit"] * 24 * 60
-                TRACKING_NUM = opt.record_length
+                Tracking = TRACKING_NUM
                 start_tracking = False
                 if isinstance(vid_writer, cv2.VideoWriter):
                     vid_writer.release()
