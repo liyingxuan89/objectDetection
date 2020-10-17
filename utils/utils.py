@@ -1452,7 +1452,7 @@ def damper_detection(img, detections, names, parameters=None):
         img = cv2ImgAddText(img, "提示：没有检测到风门.", 100, 300, (255, 0, 0), 50)
     else:
         for o_or_c in detections[:, -2]:
-            if o_or_c == 0:
+            if o_or_c == 1:
                 res["violation"] = True
                 res["风门打开"] = True
                 #cv2.putText(img, "Warning : Damper is Open.", (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
@@ -1476,7 +1476,7 @@ def parse_violation_res(res_json, scenario="sensor", parameters=None):
     if scenario == "waterlevel":
         timelimit = float(parameters["timelimit"])
         res = {}
-        Flag = df.sum()['violation'] > timelimit*1440
+        Flag = df.sum()['violation'] > timelimit*360
         if Flag:
             res["violation"] = "yes"
             res["水位超标"] = 1
@@ -1486,7 +1486,7 @@ def parse_violation_res(res_json, scenario="sensor", parameters=None):
 
     if scenario == "rock":
         res = {}
-        portion = df.sum()['violation'] / 14400
+        portion = df.sum()['violation'] / 3600
         if portion > 0.5:
             res["violation"] = "yes"
             res["大型煤块"] = portion
@@ -1497,10 +1497,12 @@ def parse_violation_res(res_json, scenario="sensor", parameters=None):
     if scenario == "damper":
         timelimit = float(parameters["timelimit"])
         res = {}
-        portion = df.sum()['violation'] > timelimit*1440
-        if portion > 0.5:
+        v_cnt = df.sum()['violation']
+        t_l = timelimit*360
+        print(v_cnt, t_l)
+        if v_cnt > 600:
             res["violation"] = "yes"
-            res["open"] = portion
+            res["风门长时间打开"] = 1.0
         else:
             res['violation'] = "no"
         return json.dumps(res)
@@ -1522,7 +1524,7 @@ def parse_violation_res(res_json, scenario="sensor", parameters=None):
         for name in ["violation", "传感器位置错误", "无传感器", "传感器数目不足", "无支柱", "支柱过少", "传感器离顶过近", "传感器离墙过近", "传感器悬挂过低", "传感器离主力支柱过近"]:
             df[name] = [x[name] for x in df["info"]]
         res = {}
-        portion = df.sum()['violation'] / 14400
+        portion = df.sum()['violation'] / 3600
         if portion > 0.5:
             res['violation'] = "yes"
         swp = df["传感器位置错误"]
