@@ -48,7 +48,7 @@ def get_water_level(imageA, imageB):
 
     # compute the Structural Similarity Index (SSIM) between the two
     # images, ensuring that the difference image is returned
-    (score, diff) = skimage.metrics.structural_similarity(grayA, grayB, full=True)
+    (score, diff) = skimage.measure.compare_ssim(grayA, grayB, full=True)
     diff = (diff * 255).astype("uint8")
     #print("SSIM: {}".format(score))
     #print(len(diff))
