@@ -1381,20 +1381,40 @@ def waterlevel_detection(img, detections):
 
 def beam_detection(img, detections, names, parameters=None):
 
-    res = {"violation": False, "无前探梁": False, "前探梁数目不足": False}
+    res = {"violation": False, "前探梁满足": False, "前探梁": False, "工人": False, "试探员": False, "液压机": False}
 
-    num_beam = 0
+    num_beam, num_worker, num_operator, num_yyj = 0, 0, 0, 0
     for c in detections[:, -1].unique():
         n = (detections[:, -1] == c).sum()
         if names[int(c)] == "beam":
             num_beam = n
-            if 0 < n < parameters["numLower"]:
+            if 0 < num_beam < int(parameters["numLower"]):
                 # cv2.putText(img, "Attention : {} beams Detected. {} more beams needed.".format(n, 4-n), (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
-                img = cv2ImgAddText(img, "注意:检测到前探梁不足4根.", 100, 100, (255, 0, 0), 2)
+                img = cv2ImgAddText(img, "检测到{}根前探梁, 不足{}根.".format(num_beam, int(parameters["numLower"])), 100, 100, (255, 0, 0), 50)
                 res["violation"] = True
-                res["前探梁数目不足"] = True
+                res["前探梁"] = True
             else:
-                img = cv2ImgAddText(img, "检测到{}根前探梁.".format(n), 100, 300, (255, 0, 0), 50)
+                res["violation"] = True
+                res["前探梁"] = True
+                res["前探梁满足"] = True
+                img = cv2ImgAddText(img, "检测前探梁安装完成.", 100, 100, (255, 0, 0), 50)
+        elif names[int(c)] == "gr":
+            num_worker = n
+            res["violation"] = True
+            res["工人"] = True
+            img = cv2ImgAddText(img, "检测到{}名工人正在施工.".format(num_worker), 100, 200, (255, 0, 0), 50)
+        elif names[int(c)] == "qdr":
+            num_operator = n
+            res["violation"] = True
+            res["试探员"] = True
+            img = cv2ImgAddText(img, "检测到试探工人正敲邦问顶.", 100, 300, (255, 0, 0), 50)
+        elif names[int(c)] == "yyj":
+            num_yyj = n
+            res["violation"] = True
+            res["液压机"] = True
+            img = cv2ImgAddText(img, "检测液压机施工.", 100, 400, (255, 0, 0), 50)
+        else:
+            raise ValueError
         # num_helmet, num_worker = 0, 0
         # if names[int(c)] == "helmet":
         #     num_helmet = n
@@ -1410,14 +1430,15 @@ def beam_detection(img, detections, names, parameters=None):
     for c in det_x:
         if names[int(c[-1])] == "beam":
             if c[2] - c[0] < 50 and c[3] - c[1] > 100:
+                res["violation"] = True
                 img = cv2ImgAddText(img, "提示：前探梁可能未正确安装.", 100, 500, (255, 0, 0), 50)
         else:
             continue
 
     if num_beam == 0:
-        img = cv2ImgAddText(img, "暂未检测到前探梁.", 100, 700, (255, 0, 0), 50)
+        img = cv2ImgAddText(img, "暂未检测到前探梁.", 100, 600, (255, 0, 0), 50)
         res["violation"] = True
-        res["无前探梁"] = True
+        res["前探梁"] = False
 
     return res, detections, img
 
@@ -1467,7 +1488,7 @@ def damper_detection(img, detections, names, parameters=None):
 def parse_violation_res(res_json, scenario="sensor", parameters=None):
 
     # get csv file
-    df = pd.read_csv(res_json, names=['time', 'info'], delimiter="|")
+    df = pd.read_csv(res_json, names=['time', 'info'], sep="|")
     df['info'] = df['info'].apply(lambda x: json.loads(x))
     for name in df['info'][0].keys():
         # print(name)
@@ -1509,19 +1530,30 @@ def parse_violation_res(res_json, scenario="sensor", parameters=None):
         return json.dumps(res)
 
     if scenario == "beam":
-        df = pd.read_csv(res_json, names=["time", "info"], delimeter="|")
-        df["info"] = df["info"].apply(lambda x: json.loads(x))
         res = {}
-        portion = len(df) / 2880
-        if portion > 0.8:
+        total = len(df)
+        one_third = int(total / 3)
+        p1 = df.iloc[:one_third, :]
+        p2 = df.iloc[one_third:-one_third, :]
+        p3 = df.iloc[-one_third:, :]
+        case1 = p1[(p1["试探员"] == True) & (p1["工人"] == False)]
+        if len(case1) > 50:
+            res["violation"] = "yes"
+            res["单个试探员作业"] = 1
+        case2 = p1.sum()["试探员"] < 10
+        if case2:
+            res["violation"] = "yes"
+            res["无试探员作业, 疑似未进行敲邦问顶"] = 1.0
+        if p3.sum()["液压机"] == 0:
             res["violation"] = "yes"
         else:
-            res["violation"] = "no"
+            if p3.sum()["前探梁满足"] == 0:
+                res["violation"] = "yes"
+            else:
+                res["violation"] = "no"
         return json.dumps(res)
 
     if scenario == "sensor":
-        df = pd.read_csv(res_json, names=['time', 'info'], delimiter="|")
-        df["info"] = df["info"].apply(lambda x: json.loads(x))
         for name in ["violation", "传感器位置错误", "无传感器", "传感器数目不足", "无支柱", "支柱过少", "传感器离顶过近", "传感器离墙过近", "传感器悬挂过低", "传感器离主力支柱过近"]:
             df[name] = [x[name] for x in df["info"]]
         res = {}
