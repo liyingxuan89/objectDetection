@@ -245,7 +245,7 @@ class Opt:
     def __init__(self):
         self.name = "configures"
         self.opt = argparse.ArgumentParser()
-        self.opt.add_argument('--record_length', type=int, default=14400, help='video recording length by frames')
+        self.opt.add_argument('--record_length', type=int, default=3600, help='video recording length by frames')
         self.opt.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
         self.opt.add_argument('--conf_thres', type=float, default=0.4, help='object confidence threshold')
         self.opt.add_argument('--iou_thres', type=float, default=0.5, help='IOU threshold for NMS')
@@ -274,7 +274,7 @@ def judge(opt):
         if not cv2.VideoCapture(live_url).read()[0]:
             break
 
-        url = 'http://183.221.111.158:27000/repositories/storages'
+        url = 'http://120.253.79.50:27000/repositories/storages'
         try:
             files_to_be_upload = os.listdir("inference/output/{}/{}".format(scenario, camera_id))
         except Exception as e:
@@ -298,13 +298,17 @@ def judge(opt):
         elif len(movs) > 1:
 
             # upload pictures
-            if len(picks) >= 1 and len(jns) >=1:
+            print(picks)
+            print(jns)
+            if len(picks) >= 1 and len(jns) >= 1:
                 pic = picks[0]
                 jn = jns[0]
                 info = parse_violation_res("inference/output/{}/{}/{}".format(scenario, camera_id, jn), scenario=scenario, parameters=parameters)
                 info = json.loads(info)
                 # print(info)
                 VIOLATION_FLAG = info["violation"]
+                print('violation: ', VIOLATION_FLAG)
+                info = [{'name': x, 'value': y} for x, y in info.items()]
                 # info = {"violation": True}
                 # VIOLATION_FLAG = "yes"
                 uuid_m = uuid.uuid1()
@@ -574,23 +578,23 @@ def on_message(action, camera_info):
 
 if __name__ == "__main__":
 
+    username = "admin"
+    psword = "gshl@2019.rabbitmq"
+    credentials = pika.PlainCredentials(username, psword)
+
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(host='120.253.79.50', port=5672, credentials=credentials, heartbeat=0))
+    channel = connection.channel()
 
     threads_pool = {}
 
     loadbalance = Loadbalance(
-        status_health_address='106.55.43.81:2181',
-        message_ip='106.55.43.81',
+        status_health_address='120.253.79.50:2181',
+        message_ip='120.253.79.50',
         message_password='gshl@2019.redis')
     loadbalance.start(on_message=on_message)
 
-    # username = "admin"
-    # psword = "gshl@2019.rabbitmq"
-    # credentials = pika.PlainCredentials(username, psword)
-    #
-    # connection = pika.BlockingConnection(
-    #     pika.ConnectionParameters(host='106.55.43.81', port=5672, credentials=credentials))
-    # channel = connection.channel()
-    #
+
     # channel.queue_declare('micro-camera-list', durable=True)
     # channel.basic_consume(on_message_callback=callback, queue="micro-camera-list", auto_ack=True)
     #
