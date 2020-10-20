@@ -18,6 +18,8 @@ def detect(opt):
 
     # get scenario
     scenario = Path(opt.output).name
+    if opt.sceanrio == 'beam':
+        TRACKING_NUM = 14400 * 100
 
     # Initialize
     device = torch_utils.select_device(opt.device)
@@ -135,7 +137,7 @@ def detect(opt):
                     s += '%g %ss, ' % (n, names[int(c)])  # add to string
 
                 res, det, im0 = violation_detection(im0, scenario=scenario, detections=det, names=names, parameters=parameters)
-                print(res)
+                # print(res)
                 IS_VIOLATION = res["violation"]
 
                 # Write results
@@ -150,6 +152,9 @@ def detect(opt):
                         #im0 = im0[int(xyxy[1]):int(xyxy[3]), int(xyxy[0]):int(xyxy[2])]
                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
 
+                # Print time (inference + NMS)
+                print('%sDone. (%.3fs)' % (s, t2 - t1))
+
             if det is None or len(det) == 0:
                 if scenario == "sensor":
                     IS_VIOLATION = True
@@ -162,8 +167,9 @@ def detect(opt):
                     res = {"violation": False, "大型煤块": False}
 
                 elif scenario == "beam":
-                    IS_VIOLATION = True
-                    res = {"violation": True, "无前探梁": False, "前探梁数目不足": False}
+                    IS_VIOLATION = False
+                    res = {"violation": False, "前探梁满足": False, "前探梁": False,
+                           "工人": False, "试探员": False, "液压机": False}
 
                 elif scenario == "damper":
                     IS_VIOLATION = True
@@ -252,10 +258,10 @@ def detect(opt):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, default='weights/best_yolov5x_damper.pt', help='model.pt path')
-    parser.add_argument('--source', type=str, default='inference/images/damper', help='source')  # file/folder, 0 for webcam
+    parser.add_argument('--weights', type=str, default='weights/best_yolov5x_beam.pt', help='model.pt path')
+    parser.add_argument('--source', type=str, default='inference/images/beam', help='source')  # file/folder, 0 for webcam
     # parser.add_argument('--source', type=str, default='http://183.221.111.158:10810/nvc/jmk/nvc/jmk/hls/stream_1/stream_1_live.m3u8', help='source')  # file/folder, 0 for webcam
-    parser.add_argument('--output', type=str, default='inference/output/damper', help='output folder')  # output folder
+    parser.add_argument('--output', type=str, default='inference/output/beam', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--record_length', type=int, default=1440*10, help='video recording length by frames')
     parser.add_argument('--online_save_name', type=str, default="test.mp4", help='online video save path')
@@ -270,6 +276,7 @@ if __name__ == '__main__':
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--update', action='store_true', help='update all models')
     opt = parser.parse_args()
+    opt.parameters = {"numLower": 4}
     print(opt)
 
     with torch.no_grad():
