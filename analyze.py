@@ -18,8 +18,8 @@ def detect(opt):
 
     # get scenario
     scenario = Path(opt.output).name
-    if opt.sceanrio == 'beam':
-        TRACKING_NUM = 14400 * 100
+    if scenario == 'beam':
+        TRACKING_NUM = 1440 * 90
 
     # Initialize
     device = torch_utils.select_device(opt.device)
@@ -150,7 +150,7 @@ def detect(opt):
                     if save_img or view_img:  # Add bbox to image
                         label = '%s %.2f' % (names[int(cls)], conf)
                         #im0 = im0[int(xyxy[1]):int(xyxy[3]), int(xyxy[0]):int(xyxy[2])]
-                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
+                        # plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
 
                 # Print time (inference + NMS)
                 print('%sDone. (%.3fs)' % (s, t2 - t1))
@@ -211,6 +211,8 @@ def detect(opt):
                     pass
                 if idx % 720 == 0:
                     cv2.imwrite(save_path+"_{}_.png".format(idx), im0)
+                # print("Tracking : ", Tracking)
+                # print("idx : ", idx)
 
             # Save results (image with detections)
             if save_img:
