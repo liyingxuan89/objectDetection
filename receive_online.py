@@ -258,6 +258,27 @@ class Opt:
         self.opt.add_argument('--update', action='store_true', help='update all models')
         self.cfg = self.opt.parse_args()
 
+def splitFrames_mp4(input_path, output_path, frame_list):
+    cap = cv2.VideoCapture(input_path)
+    fourcc = 'mp4v'  # output video codec
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    vid_writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
+    i = 0
+    while True:
+        i+=1
+        res, image = cap.read()
+        if not res:
+            break
+        if len(frame_list) == 0:
+            break
+        if i == frame_list[0]:
+            vid_writer.write(image)
+            frame_list.pop(0)
+    print('采集结束')
+    cap.release()
+
 def judge(opt):
 
     live_url, scenario, camera_id, online_save_name, record_length, output, alarm_id =\
@@ -342,17 +363,37 @@ def judge(opt):
 
             # upload video
             for filename in movs[:-1]:
+                info = parse_violation_res("inference/output/{}/{}/{}".format(scenario, camera_id, jns[0]), scenario=scenario, parameters=parameters)
+                info = json.loads(info)
+                VIOLATION_FLAG = info["violation"]
+                print('violation: ', VIOLATION_FLAG)
                 cur_file = "inference/output/{}/{}/{}".format(scenario, camera_id, filename)
-                VIOLATION_FLAG = "yes"
+                if scenario == "beam":
+                    # size1 = os.path.getsize("inference/output/{}/{}/{}".format(scenario, camera_id, movs[0]))
+                    # time.sleep(10)
+                    # size2 = os.path.getsize("inference/output/{}/{}/{}".format(scenario, camera_id, movs[0]))
+                    frame_list = info["证据"]
+                    cur_file_frame = cur_file.replace(".mp4", "_frame.mp4")
+                    splitFrames_mp4(cur_file, cur_file_frame, frame_list)
+                    print("get frame of video...")
                 if VIOLATION_FLAG == "yes":
                     cur_file_encoded = cur_file.replace(".mp4", "_encode.mp4")
-                    try:
-                        return_code = subprocess.check_output(
-                            "ffmpeg -i {} -vcodec libx264 {}".format(cur_file, cur_file_encoded), shell=True)
-                    except Exception as e:
-                        print(e)
-                        os.remove(cur_file)
-                        continue
+                    if scenario == "beam":
+                        try:
+                            return_code = subprocess.check_output(
+                                "ffmpeg -i {} -vcodec libx264 {}".format(cur_file_frame, cur_file_encoded), shell=True)
+                        except Exception as e:
+                            print(e)
+                            os.remove(cur_file)
+                            continue
+                    else:
+                        try:
+                            return_code = subprocess.check_output(
+                                "ffmpeg -i {} -vcodec libx264 {}".format(cur_file, cur_file_encoded), shell=True)
+                        except Exception as e:
+                            print(e)
+                            os.remove(cur_file)
+                            continue
 
                     # print(return_code)
                     print("------------------------------------------------------------------")
@@ -362,7 +403,8 @@ def judge(opt):
                     store_id = StoreUtils.upload(url=url, filename=cur_file_encoded)
                     store_ids.append(store_id)
                     os.remove(cur_file_encoded)
-                    print("removed h264 video {}".format(cur_file_encoded))
+                    os.remove(cur_file_frame)
+                    print("removed h264 video {} and {}".format(cur_file_encoded, cur_file_frame))
                     if len(uuid_queue) > 0:
                         for i in range(len(uuid_queue)):
                             Umessage = {"videoCode": str(uuid_queue.pop()), "videoUrl": store_id}  # upload message
@@ -588,11 +630,33 @@ if __name__ == "__main__":
 
     threads_pool = {}
 
-    loadbalance = Loadbalance(
-        status_health_address='120.253.79.50:2181',
-        message_ip='120.253.79.50',
-        message_password='gshl@2019.redis')
-    loadbalance.start(on_message=on_message)
+    camera_info =  {
+        "alarmInfo": {
+            "alarmId": "4028e3817332b7c6017332cc0c340001",
+            "params": [
+                {
+                    "paramsNameEn": "numLower",
+                    "paramsValue": "4"
+                }
+            ],
+            "typeNameEn": "beam"
+        },
+        "cameraId": "4028e381736b28dc01736b6075e301a2",
+        "liveUrl": "http://120.253.79.50:10800/record/stream_2/20201019/20201019200003/stream_2_record.m3u8",
+        "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
+    }
+
+    camera_id = "4028e381736b28dc01736b6075e301a2"
+    scenario = "beam"
+    t = threading.Thread(target=mission, args=(camera_info, scenario))
+    threads_pool[camera_id] = t
+    t.start()
+
+    # loadbalance = Loadbalance(
+    #     status_health_address='120.253.79.50:2181',
+    #     message_ip='120.253.79.50',
+    #     message_password='gshl@2019.redis')
+    # loadbalance.start(on_message=on_message)
 
 
     # channel.queue_declare('micro-camera-list', durable=True)
