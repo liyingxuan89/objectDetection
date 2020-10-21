@@ -1530,27 +1530,28 @@ def parse_violation_res(res_json, scenario="sensor", parameters=None):
         return json.dumps(res)
 
     if scenario == "beam":
-        res = {}
+        res = {'证据':[]}
         total = len(df)
         one_third = int(total / 3)
         p1 = df.iloc[:one_third, :]
         p2 = df.iloc[one_third:-one_third, :]
-        p3 = df.iloc[-one_third:, :]
         case1 = p1[(p1["试探员"] == True) & (p1["工人"] == False)]
-        if len(case1) > 50:
+        if len(case1) > 100:
             res["violation"] = "yes"
             res["单个试探员作业"] = 1
+            res["证据"] += list(case1.index)
         case2 = p1.sum()["试探员"] < 10
         if case2:
             res["violation"] = "yes"
-            res["无试探员作业, 疑似未进行敲邦问顶"] = 1.0
-        if p3.sum()["液压机"] == 0:
+            res["未检测到试探员作业, 疑似未进行敲邦问顶"] = 1.0
+            res["证据"] += list(p1.index)[::10]
+        case3 = df[(df["液压机"]==False) & (df["前探梁"]==True)]
+        if case3.sum()["前探梁满足"] < 360:
             res["violation"] = "yes"
-        else:
-            if p3.sum()["前探梁满足"] == 0:
-                res["violation"] = "yes"
-            else:
-                res["violation"] = "no"
+            res["未安装足够前探梁"] = 0.8
+            prove2 = list(p2[p2["前探梁"]==True].index)[::10]
+            res["证据"] += prove2
+        res["证据"].sort()
         return json.dumps(res)
 
     if scenario == "sensor":
