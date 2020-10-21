@@ -630,33 +630,33 @@ if __name__ == "__main__":
 
     threads_pool = {}
 
-    camera_info =  {
-        "alarmInfo": {
-            "alarmId": "4028e3817332b7c6017332cc0c340001",
-            "params": [
-                {
-                    "paramsNameEn": "numLower",
-                    "paramsValue": "4"
-                }
-            ],
-            "typeNameEn": "beam"
-        },
-        "cameraId": "4028e381736b28dc01736b6075e301a2",
-        "liveUrl": "http://120.253.79.50:10800/record/stream_2/20201019/20201019200003/stream_2_record.m3u8",
-        "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
-    }
+    # camera_info =  {
+    #     "alarmInfo": {
+    #         "alarmId": "4028e3817332b7c6017332cc0c340001",
+    #         "params": [
+    #             {
+    #                 "paramsNameEn": "numLower",
+    #                 "paramsValue": "4"
+    #             }
+    #         ],
+    #         "typeNameEn": "beam"
+    #     },
+    #     "cameraId": "4028e381736b28dc01736b6075e301a2",
+    #     "liveUrl": "http://120.253.79.50:10800/record/stream_2/20201019/20201019200003/stream_2_record.m3u8",
+    #     "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
+    # }
+    #
+    # camera_id = "4028e381736b28dc01736b6075e301a2"
+    # scenario = "beam"
+    # t = threading.Thread(target=mission, args=(camera_info, scenario))
+    # threads_pool[camera_id] = t
+    # t.start()
 
-    camera_id = "4028e381736b28dc01736b6075e301a2"
-    scenario = "beam"
-    t = threading.Thread(target=mission, args=(camera_info, scenario))
-    threads_pool[camera_id] = t
-    t.start()
-
-    # loadbalance = Loadbalance(
-    #     status_health_address='120.253.79.50:2181',
-    #     message_ip='120.253.79.50',
-    #     message_password='gshl@2019.redis')
-    # loadbalance.start(on_message=on_message)
+    loadbalance = Loadbalance(
+        status_health_address='120.253.79.50:2181',
+        message_ip='120.253.79.50',
+        message_password='gshl@2019.redis')
+    loadbalance.start(on_message=on_message)
 
 
     # channel.queue_declare('micro-camera-list', durable=True)
