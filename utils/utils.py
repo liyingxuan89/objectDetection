@@ -1289,7 +1289,7 @@ def sensor_detection(img, detections, names, parameters=None):
         n = (detections[:, -1] == c).sum()  # detections per class
         if names[int(c)] == "sensor":
             num_sensor = n
-            if 0 < num_sensor < 3:
+            if 0 < num_sensor < 2:
                 # cv2.putText(img, "No Enough Sensor Detected.", (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
                 img = cv2ImgAddText(img, "警告：传感器数目不足.", 100, 100, (255, 0, 0), 50)
                 res["violation"] = True
@@ -1302,7 +1302,7 @@ def sensor_detection(img, detections, names, parameters=None):
                 res["violation"] = True
                 res["支柱过少"] = True
                 # cv2.putText(img, "No Enough Supporting Pillars.", (100, 400), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
-                img = cv2ImgAddText(img, "支撑柱不足.", 100, 300, (255, 0, 0), 50)
+                img = cv2ImgAddText(img, "支撑柱不足.", 100, 200, (255, 0, 0), 50)
             else:
                 pass
 
@@ -1347,7 +1347,7 @@ def sensor_detection(img, detections, names, parameters=None):
         if c[1] < 50:
             res["violation"] = True
             # cv2.putText(img, "Sensor is too close to ceiling.", (100, 500), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
-            img = cv2ImgAddText(img, "传感器位置离顶部过近.", 100, 500, (255, 0, 0), 50)
+            img = cv2ImgAddText(img, "传感器位置离顶部过近.", 100, 400, (255, 0, 0), 50)
             res["传感器离顶过近"] = True
             res["传感器位置错误"] = True
         if c[1] > 500:
@@ -1360,14 +1360,14 @@ def sensor_detection(img, detections, names, parameters=None):
         if c[0] < 250:
             res["violation"] = True
             # cv2.putText(img, "Sensor is too close to the left wall.", (100, 700), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
-            img = cv2ImgAddText(img, "传感器位置离左墙面过近.", 100, 500, (255, 0, 0), 50)
+            img = cv2ImgAddText(img, "传感器位置离左墙面过近.", 100, 600, (255, 0, 0), 50)
             res["传感器离墙过近"] = True
             res["传感器位置错误"] = True
 
         if max_x > 1700 and max_x - c[2] < 300:
             res["violation"] = True
             # cv2.putText(img, "Sensor is too close to the main_pillar.", (100, 700), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
-            img = cv2ImgAddText(img, "传感器离右侧主液压支柱过近.", 100, 500, (255, 0, 0), 50)
+            img = cv2ImgAddText(img, "传感器离右侧主液压支柱过近.", 100, 700, (255, 0, 0), 50)
             res["传感器离主力支柱过近"] = True
             res["传感器位置错误"] = True
 
@@ -1412,7 +1412,7 @@ def beam_detection(img, detections, names, parameters=None):
             num_yyj = n
             res["violation"] = True
             res["液压机"] = True
-            img = cv2ImgAddText(img, "检测液压机施工.", 100, 400, (255, 0, 0), 50)
+            img = cv2ImgAddText(img, "检测到液压机施工.", 100, 400, (255, 0, 0), 50)
         else:
             raise ValueError
         # num_helmet, num_worker = 0, 0
@@ -1540,7 +1540,7 @@ def parse_violation_res(res_json, scenario="sensor", parameters=None):
             res["violation"] = "yes"
             res["单个试探员作业"] = 1
             res["证据"] += list(case1.index)
-        case2 = p1.sum()["试探员"] < 10
+        case2 = p1.sum()["试探员"] < 100
         if case2:
             res["violation"] = "yes"
             res["未检测到试探员作业, 疑似未进行敲邦问顶"] = 1.0
@@ -1555,33 +1555,55 @@ def parse_violation_res(res_json, scenario="sensor", parameters=None):
         return json.dumps(res)
 
     if scenario == "sensor":
-        for name in ["violation", "传感器位置错误", "无传感器", "传感器数目不足", "无支柱", "支柱过少", "传感器离顶过近", "传感器离墙过近", "传感器悬挂过低", "传感器离主力支柱过近"]:
-            df[name] = [x[name] for x in df["info"]]
         res = {}
-        portion = df.sum()['violation'] / 3600
+        portion = df.sum()['violation'] / (1440 * int(parameters["timelimit"]))
         if portion > 0.5:
             res['violation'] = "yes"
-        swp = df["传感器位置错误"]
-        df.drop('info', axis=1, inplace=True)
-        df.drop('violation', axis=1, inplace=True)
-        df.drop('time', axis=1, inplace=True)
-        b = df.sum()
-        res = b.div(b.sum())
-        res = res.to_dict()
-        five_percent = int(0.05 * len(swp))
-        if swp.iloc[:five_percent*2].sum() > 0 and swp.iloc[-five_percent:].sum() == 0:
-            res["传感器位置错误"] = 0
-            res["传感器离墙过近"] = 0
-            res["传感器悬挂过低"] = 0
-            res["传感器离顶过近"] = 0
-            res["传感器离主力支柱过近"] = 0
+        case1 = df.sum()["传感器位置错误"] / df.sum()["violation"]
+        if case1 > 0.3:
+            res["violation"] = "yes"
+            res["传感器位置错误"] = case1
+        case2 = df.sum()["传感器悬挂过低"] / df.sum()["violation"]
+        if case2 > 0.2:
+            res["violation"] = "yes"
+            res["传感器悬挂过低"] = case2
+        case3 = df.sum()["无传感器"] / df.sum()["violation"]
+        if case3 > 0.5:
+            res["violation"] = "yes"
+            res["无传感器"] = case3
+        case4 = df.sum()["传感器数目不足"] / df.sum()["violation"]
+        if case4 > 0.5:
+            res["violation"] = "yes"
+            res["传感器数目不足"] = case4
+        case5 = df.sum()["传感器离顶过近"] / df.sum()["violation"]
+        if case5 > 0.5:
+            res["violation"] = "yes"
+            res["传感器离顶过近"] = case5
+        case6 = df.sum()["传感器离墙过近"] / df.sum()["violation"]
+        if case6 > 0.5:
+            res["violation"] = "yes"
+            res["传感器离墙过近"] = case6
 
-        for each in res:
-            if res[each] > 0:
-                res['violation'] = "yes"
-                break
+        # swp = df["传感器位置错误"]
+        # df.drop('info', axis=1, inplace=True)
+        # df.drop('violation', axis=1, inplace=True)
+        # df.drop('time', axis=1, inplace=True)
+        # b = df.sum()
+        # res = b.div(b.sum())
+        # res = res.to_dict()
+        # five_percent = int(0.05 * len(swp))
+        # if swp.iloc[:five_percent*2].sum() > 0 and swp.iloc[-five_percent:].sum() == 0:
+        #     res["传感器位置错误"] = 0
+        #     res["传感器离墙过近"] = 0
+        #     res["传感器悬挂过低"] = 0
+        #     res["传感器离顶过近"] = 0
+        #     res["传感器离主力支柱过近"] = 0
 
-    return json.dumps(res)
+        # for each in res:
+        #     if res[each] > 0:
+        #         res['violation'] = "yes"
+        #         break
+        return json.dumps(res)
 
 
 
