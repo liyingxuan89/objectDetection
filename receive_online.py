@@ -55,6 +55,7 @@ class Loadbalance:
         for item in ps.listen():
             if item['type'] == 'message':
                 if on_message is not None:
+                    print(item)
                     node_message = json.loads(item['data'])
                     node_id = node_message['nodeId']
                     if node_id == self.__node_id:
@@ -245,7 +246,7 @@ class Opt:
     def __init__(self):
         self.name = "configures"
         self.opt = argparse.ArgumentParser()
-        self.opt.add_argument('--record_length', type=int, default=3600, help='video recording length by frames')
+        self.opt.add_argument('--record_length', type=int, default=1440, help='video recording length by frames')
         self.opt.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
         self.opt.add_argument('--conf_thres', type=float, default=0.4, help='object confidence threshold')
         self.opt.add_argument('--iou_thres', type=float, default=0.5, help='IOU threshold for NMS')
@@ -265,7 +266,7 @@ def splitFrames_mp4(input_path, output_path, frame_list):
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     vid_writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
-    i = 0
+    i = -1
     while True:
         i+=1
         res, image = cap.read()
@@ -273,6 +274,7 @@ def splitFrames_mp4(input_path, output_path, frame_list):
             break
         if len(frame_list) == 0:
             break
+        # print(i, frame_list[0])
         if i == frame_list[0]:
             vid_writer.write(image)
             frame_list.pop(0)
@@ -328,6 +330,8 @@ def judge(opt):
                 info = json.loads(info)
                 # print(info)
                 VIOLATION_FLAG = info["violation"]
+                if scenario == "beam":
+                    info.pop("证据")
                 print('violation: ', VIOLATION_FLAG)
                 info = [{'name': x, 'value': y} for x, y in info.items()]
                 # info = {"violation": True}
@@ -356,13 +360,12 @@ def judge(opt):
                     p = "inference/output/{}/{}/{}".format(scenario, camera_id, each)
                     os.remove(p)
                     print("remove picture {}".format(p))
-                for each in jns[:-1]:
-                    p = "inference/output/{}/{}/{}".format(scenario, camera_id, each)
-                    os.remove(p)
-                    print("remove json {}".format(p))
 
+            print(uuid_queue)
             # upload video
             for filename in movs[:-1]:
+                # if "frame" in filename:
+                #     continue
                 info = parse_violation_res("inference/output/{}/{}/{}".format(scenario, camera_id, jns[0]), scenario=scenario, parameters=parameters)
                 info = json.loads(info)
                 VIOLATION_FLAG = info["violation"]
@@ -374,8 +377,10 @@ def judge(opt):
                     # size2 = os.path.getsize("inference/output/{}/{}/{}".format(scenario, camera_id, movs[0]))
                     frame_list = info["证据"]
                     cur_file_frame = cur_file.replace(".mp4", "_frame.mp4")
+                    print(frame_list)
                     splitFrames_mp4(cur_file, cur_file_frame, frame_list)
                     print("get frame of video...")
+                # info = [{'name': x, 'value': y} for x, y in info.items()]
                 if VIOLATION_FLAG == "yes":
                     cur_file_encoded = cur_file.replace(".mp4", "_encode.mp4")
                     if scenario == "beam":
@@ -385,6 +390,8 @@ def judge(opt):
                         except Exception as e:
                             print(e)
                             os.remove(cur_file)
+                            time.sleep(60)
+                            os.remove(cur_file_frame)
                             continue
                     else:
                         try:
@@ -393,6 +400,7 @@ def judge(opt):
                         except Exception as e:
                             print(e)
                             os.remove(cur_file)
+                            os.remove(jns[0])
                             continue
 
                     # print(return_code)
@@ -403,8 +411,10 @@ def judge(opt):
                     store_id = StoreUtils.upload(url=url, filename=cur_file_encoded)
                     store_ids.append(store_id)
                     os.remove(cur_file_encoded)
-                    os.remove(cur_file_frame)
-                    print("removed h264 video {} and {}".format(cur_file_encoded, cur_file_frame))
+                    if scenario == "beam":
+                        os.remove(cur_file_frame)
+                        print("removed h264 video {} and {}".format(cur_file_encoded, cur_file_frame))
+                    print("removed h264 video {}".format(cur_file_encoded))
                     if len(uuid_queue) > 0:
                         for i in range(len(uuid_queue)):
                             Umessage = {"videoCode": str(uuid_queue.pop()), "videoUrl": store_id}  # upload message
@@ -412,6 +422,10 @@ def judge(opt):
                             channel.basic_publish(exchange="micro-alarm-algorithm", routing_key="micro-algorithm-video",
                                                   body=json.dumps(Umessage))
                     # print(store_id)
+                    for each in jns[:-1]:
+                        p = "inference/output/{}/{}/{}".format(scenario, camera_id, each)
+                        os.remove(p)
+                        print("remove json {}".format(p))
                 else:
                     os.remove(cur_file)
         elif len(movs) > 1 and len(jns) == 0:
@@ -529,7 +543,6 @@ def callback(ch, method, properties, body):
     return
 
 
-
 def _async_raise(tid, exctype):
     """raises the exception, performs cleanup if needed"""
     tid = ctypes.c_long(tid)
@@ -570,8 +583,6 @@ class MyThread(threading.Thread):
 
             if self.stopped():
                 break
-
-
 
 
 def on_message(action, camera_info):
@@ -627,12 +638,18 @@ if __name__ == "__main__":
     connection = pika.BlockingConnection(
         pika.ConnectionParameters(host='120.253.79.50', port=5672, credentials=credentials, heartbeat=0))
     channel = connection.channel()
-
     threads_pool = {}
 
-    # camera_info =  {
+    loadbalance = Loadbalance(
+        status_health_address='120.253.79.50:2181',
+        message_ip='120.253.79.50',
+        message_password='gshl@2019.redis')
+    loadbalance.start(on_message=on_message)
+
+    #
+    # camera_info = {
     #     "alarmInfo": {
-    #         "alarmId": "4028e3817332b7c6017332cc0c340001",
+    #         "alarmId": "ff808081753c0eec01754c5b697d0019",
     #         "params": [
     #             {
     #                 "paramsNameEn": "numLower",
@@ -641,22 +658,34 @@ if __name__ == "__main__":
     #         ],
     #         "typeNameEn": "beam"
     #     },
-    #     "cameraId": "4028e381736b28dc01736b6075e301a2",
-    #     "liveUrl": "http://120.253.79.50:10800/record/stream_2/20201019/20201019200003/stream_2_record.m3u8",
+    #     "cameraId": "ff808081753c0eec01754148ecb10011",
+        # "liveUrl": "http://120.253.79.50:10800/record/stream_2/20201022/20201022140003/stream_2_record.m3u8",
+        # "liveUrl": "http://192.168.0.98:1934/live?app=demo&stream=123",
+        # "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
+    # }
+    # camera_info = {
+    #     "alarmInfo": {
+    #         "alarmId": "ff808081753c0eec01754c5b6bec001a",
+    #         "params": [
+    #             {
+    #                 "paramsNameEn": "timelimit",
+    #                 "paramsValue": "5"
+    #             }
+    #         ],
+    #         "typeNameEn": "sensor"
+    #     },
+    #     "cameraId": "ff808081753c0eec0175414bbdf80017",
+    #     "liveUrl": "http://120.253.79.50:10800/record/stream_1/20201026/20201026081227/stream_1_record.m3u8",
     #     "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
     # }
     #
-    # camera_id = "4028e381736b28dc01736b6075e301a2"
+    # camera_id = "ff808081753c0eec01754148ecb10011"
+    # camera_id = "ff808081753c0eec0175414bbdf80017"
     # scenario = "beam"
     # t = threading.Thread(target=mission, args=(camera_info, scenario))
     # threads_pool[camera_id] = t
     # t.start()
-
-    loadbalance = Loadbalance(
-        status_health_address='120.253.79.50:2181',
-        message_ip='120.253.79.50',
-        message_password='gshl@2019.redis')
-    loadbalance.start(on_message=on_message)
+    #
 
 
     # channel.queue_declare('micro-camera-list', durable=True)
