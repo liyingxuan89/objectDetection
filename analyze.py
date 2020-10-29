@@ -19,7 +19,7 @@ def detect(opt):
     # get scenario
     scenario = Path(opt.output).name
     if scenario == 'beam':
-        TRACKING_NUM = 1440 * 90
+        TRACKING_NUM = 1440 * 80
 
     # Initialize
     device = torch_utils.select_device(opt.device)
@@ -139,6 +139,9 @@ def detect(opt):
                 res, det, im0 = violation_detection(im0, scenario=scenario, detections=det, names=names, parameters=parameters)
                 # print(res)
                 IS_VIOLATION = res["violation"]
+                if scenario == "beam":
+                    if res["工人"] or res["试探员"]:
+                        IS_VIOLATION = res["violation"]
 
                 # Write results
                 for *xyxy, conf, cls in det:
@@ -153,7 +156,7 @@ def detect(opt):
                         # plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
 
                 # Print time (inference + NMS)
-                print('%sDone. (%.3fs)' % (s, t2 - t1))
+                # print('%sDone. (%.3fs)' % (s, t2 - t1))
 
             if det is None or len(det) == 0:
                 if scenario == "sensor":
