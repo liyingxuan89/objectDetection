@@ -19,7 +19,7 @@ def detect(opt):
     # get scenario
     scenario = Path(opt.output).name
     if scenario == 'beam':
-        TRACKING_NUM = 1440 * 80
+        TRACKING_NUM = 1440 * 20
 
     # Initialize
     device = torch_utils.select_device(opt.device)
@@ -162,9 +162,8 @@ def detect(opt):
                 if scenario == "sensor":
                     IS_VIOLATION = True
                     res = {"violation": True, "传感器位置错误": False, "无传感器": False, "传感器数目不足": False,
-                           "无支柱": False, "支柱过少": False,
                            "传感器离顶过近": False, "传感器离墙过近": False, "传感器悬挂过低": False,
-                           "传感器离主力支柱过近": False}
+                           }
                 elif scenario == "Huge_rock":
                     IS_VIOLATION = False
                     res = {"violation": False, "大型煤块": False}
