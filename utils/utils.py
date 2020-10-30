@@ -1279,9 +1279,8 @@ def sensor_detection(img, detections, names, parameters=None):
     :param names: name filed of current filed
     """
     res = {"violation": False, "传感器位置错误": False, "无传感器": False, "传感器数目不足": False,
-           "无支柱": False, "支柱过少": False,
            "传感器离顶过近": False, "传感器离墙过近": False, "传感器悬挂过低": False,
-           "传感器离主力支柱过近": False}
+            }
     #detections = detections[detections[:,-2] >=0.6]
     #imgx = cv2ImgAddText(img, "测试文字.", 0, 0, (255, 0, 0), 50)
     num_sensor, num_pillar = 0, 0
@@ -1295,14 +1294,14 @@ def sensor_detection(img, detections, names, parameters=None):
                 res["violation"] = True
                 res["无传感器"] = True
 
-        elif names[int(c)] == "pillar":
-            num_pillar = n
-            #cv2.putText(img, "{} Pillars Detected.".format(num_pillar), (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
-            if 0 < num_pillar < 2:
-                res["violation"] = True
-                res["支柱过少"] = True
-                # cv2.putText(img, "No Enough Supporting Pillars.", (100, 400), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
-                img = cv2ImgAddText(img, "支撑柱不足.", 100, 200, (255, 0, 0), 50)
+        # elif names[int(c)] == "pillar":
+        #     num_pillar = n
+        #     #cv2.putText(img, "{} Pillars Detected.".format(num_pillar), (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+        #     if 0 < num_pillar < 2:
+        #         res["violation"] = True
+        #         res["支柱过少"] = True
+        #         # cv2.putText(img, "No Enough Supporting Pillars.", (100, 400), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+        #         img = cv2ImgAddText(img, "支撑柱不足.", 100, 200, (255, 0, 0), 50)
             else:
                 pass
 
@@ -1326,10 +1325,10 @@ def sensor_detection(img, detections, names, parameters=None):
         if len(p2) > 0:
             detections = torch.cat([p1, p2], axis=0)
 
-    if num_pillar == 0:
-        res["violation"] = True
-        res["无支柱"] = True
-        img = cv2ImgAddText(img, "未检测到支撑柱.", 100, 300, (255, 0, 0), 50)
+    # if num_pillar == 0:
+    #     res["violation"] = True
+    #     res["无支柱"] = True
+    #     img = cv2ImgAddText(img, "未检测到支撑柱.", 100, 300, (255, 0, 0), 50)
         #cv2.putText(img, "No Supporting Pillar Detected.".format(n), (100, 400), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
 
     det = detections.cpu().data.numpy()
@@ -1364,12 +1363,12 @@ def sensor_detection(img, detections, names, parameters=None):
             res["传感器离墙过近"] = True
             res["传感器位置错误"] = True
 
-        if max_x > 1700 and max_x - c[2] < 300:
-            res["violation"] = True
-            # cv2.putText(img, "Sensor is too close to the main_pillar.", (100, 700), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
-            img = cv2ImgAddText(img, "传感器离右侧主液压支柱过近.", 100, 700, (255, 0, 0), 50)
-            res["传感器离主力支柱过近"] = True
-            res["传感器位置错误"] = True
+        # if max_x > 1700 and max_x - c[2] < 300:
+        #     res["violation"] = True
+        #     # cv2.putText(img, "Sensor is too close to the main_pillar.", (100, 700), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+        #     img = cv2ImgAddText(img, "传感器离右侧主液压支柱过近.", 100, 700, (255, 0, 0), 50)
+        #     res["传感器离主力支柱过近"] = True
+        #     res["传感器位置错误"] = True
 
     return res, detections, img
 
