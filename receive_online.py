@@ -75,13 +75,13 @@ def getConfig(path):
 
 def getCommand(scenario, source):
     print(scenario + " of source : " + source)
-    
+
     if scenario == "waterlevel":
         cmd = "python3 shuiwei.py"
         cmd += " --output {}{} ".format("inference/output/", scenario)
         cmd += " --source {} ".format(source)
         return cmd
-        
+
     cmd = "python3 detect.py "
     cfg = getConfig('data/conf.yaml')
 
@@ -235,7 +235,7 @@ def wait_to_reconnect_camera(url):
     while True:
         if cv2.VideoCapture(url).read()[0]:
             print("re-connected to camera...")
-            return True 
+            return True
         else:
             print("Waiting to re-connect to camera {}".format(url))
             time.sleep(10)
@@ -246,7 +246,7 @@ class Opt:
     def __init__(self):
         self.name = "configures"
         self.opt = argparse.ArgumentParser()
-        self.opt.add_argument('--record_length', type=int, default=1440, help='video recording length by frames')
+        self.opt.add_argument('--record_length', type=int, default=1440*5, help='video recording length by frames')
         self.opt.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
         self.opt.add_argument('--conf_thres', type=float, default=0.4, help='object confidence threshold')
         self.opt.add_argument('--iou_thres', type=float, default=0.5, help='IOU threshold for NMS')
@@ -256,7 +256,6 @@ class Opt:
         self.opt.add_argument('--classes', nargs='+', type=int, help='filter by class')
         self.opt.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
         self.opt.add_argument('--augment', action='store_true', help='augmented inference')
-        self.opt.add_argument('--update', action='store_true', help='update all models')
         self.cfg = self.opt.parse_args()
 
 def splitFrames_mp4(input_path, output_path, frame_list):
@@ -297,7 +296,7 @@ def judge(opt):
         if not cv2.VideoCapture(live_url).read()[0]:
             break
 
-        url = 'http://120.253.79.50:27000/repositories/storages'
+        url = 'http://183.221.111.158:27000/repositories/storages'
         try:
             files_to_be_upload = os.listdir("inference/output/{}/{}".format(scenario, camera_id))
         except Exception as e:
@@ -355,6 +354,7 @@ def judge(opt):
                     channel.basic_publish(exchange="micro-alarm-algorithm", routing_key="micro-algorithm-response",
                                           body=json.dumps(Umessage))
                     uuid_queue.append(uuid_m)
+                    print("umessage: ", Umessage)
                     print("published U_message of picks.")
                 for each in picks[:-1]:
                     p = "inference/output/{}/{}/{}".format(scenario, camera_id, each)
@@ -634,19 +634,19 @@ if __name__ == "__main__":
     username = "admin"
     psword = "gshl@2019.rabbitmq"
     credentials = pika.PlainCredentials(username, psword)
-
+    ip = "106.55.43.81"
     connection = pika.BlockingConnection(
-        pika.ConnectionParameters(host='120.253.79.50', port=5672, credentials=credentials, heartbeat=0))
+        pika.ConnectionParameters(host=ip, port=5672, credentials=credentials, heartbeat=0))
     channel = connection.channel()
     threads_pool = {}
 
-    loadbalance = Loadbalance(
-        status_health_address='120.253.79.50:2181',
-        message_ip='120.253.79.50',
-        message_password='gshl@2019.redis')
-    loadbalance.start(on_message=on_message)
-
+    # loadbalance = Loadbalance(
+    #     status_health_address='{}:2181'.format(ip),
+    #     message_ip=ip,
+    #     message_password='gshl@2019.redis')
+    # loadbalance.start(on_message=on_message)
     #
+
     # camera_info = {
     #     "alarmInfo": {
     #         "alarmId": "ff808081753c0eec01754c5b697d0019",
@@ -659,32 +659,31 @@ if __name__ == "__main__":
     #         "typeNameEn": "beam"
     #     },
     #     "cameraId": "ff808081753c0eec01754148ecb10011",
-        # "liveUrl": "http://120.253.79.50:10800/record/stream_2/20201022/20201022140003/stream_2_record.m3u8",
+    #     "liveUrl": "http://120.253.79.50:10800/record/stream_2/20201022/20201022140003/stream_2_record.m3u8",
         # "liveUrl": "http://192.168.0.98:1934/live?app=demo&stream=123",
         # "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
     # }
-    # camera_info = {
-    #     "alarmInfo": {
-    #         "alarmId": "ff808081753c0eec01754c5b6bec001a",
-    #         "params": [
-    #             {
-    #                 "paramsNameEn": "timelimit",
-    #                 "paramsValue": "5"
-    #             }
-    #         ],
-    #         "typeNameEn": "sensor"
-    #     },
-    #     "cameraId": "ff808081753c0eec0175414bbdf80017",
-    #     "liveUrl": "http://120.253.79.50:10800/record/stream_1/20201026/20201026081227/stream_1_record.m3u8",
-    #     "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
-    # }
+    camera_info = {
+        "alarmInfo": {
+            "alarmId": "ff808081753c0eec01754c5b6bec001a",
+            "params": [
+                {
+                    "paramsNameEn": "timelimit",
+                    "paramsValue": "5"
+                }
+            ],
+            "typeNameEn": "sensor"
+        },
+        "cameraId": "ff808081753c0eec0175414bbdf80017",
+        "liveUrl": "http://120.253.79.50:10800/record/stream_3/20201104/20201104110001/stream_3_record.m3u8",
+        "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
+    }
     #
-    # camera_id = "ff808081753c0eec01754148ecb10011"
-    # camera_id = "ff808081753c0eec0175414bbdf80017"
-    # scenario = "beam"
-    # t = threading.Thread(target=mission, args=(camera_info, scenario))
-    # threads_pool[camera_id] = t
-    # t.start()
+    camera_id = "ff808081753c0eec0175414bbdf80017"
+    scenario = "sensor"
+    t = threading.Thread(target=mission, args=(camera_info, scenario))
+    threads_pool[camera_id] = t
+    t.start()
     #
 
 
