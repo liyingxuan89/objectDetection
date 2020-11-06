@@ -310,13 +310,17 @@ def judge(opt):
         picks = sorted(picks)
         movs = sorted(movs)
         jns = sorted(jns)
-        jn = jns[0]
         print(movs)
         s = ""
 
         if len(jns) == 0:
             time.sleep(10)
             continue
+
+        jn = jns[0]
+        # if not os.path.exists('inference/output/{}/{}/{}'.format(scenario, camera_id, jn.rstrip(".json"))):
+        #     os.remove('inference/output/{}/{}/{}'.format(scenario, camera_id, jn.rstrip(".json")))
+        #     continue
 
         md5_cur = str(subprocess.check_output('md5sum inference/output/{}/{}/{}'.format(scenario, camera_id, jn),
                                               shell=True), 'utf8').split(' ')[0]
@@ -435,7 +439,11 @@ def judge(opt):
                     # print(store_id)
                 for each in picks:
                     p = "inference/output/{}/{}/{}".format(scenario, camera_id, each)
-                    if each[:14] == jn[:14]:
+                    prefix = time.strptime(each[:14], "%Y%m%d%H%M%S")
+                    prefix = int(time.mktime(prefix))
+                    std = time.strptime(jn[:14], "%Y%m%d%H%M%S")
+                    std = int(time.mktime(std))
+                    if prefix <= std:
                         os.remove(p)
                         print("remove picture {}".format(p))
             else:
@@ -446,7 +454,11 @@ def judge(opt):
                 os.remove("inference/output/{}/{}/{}".format(scenario, camera_id, jn.rstrip(".json")))
                 for each in picks[:-1]:
                     p = "inference/output/{}/{}/{}".format(scenario, camera_id, each)
-                    if each[:14] == jn[:14]:
+                    prefix = time.strptime(each[:14], "%Y%m%d%H%M%S")
+                    prefix = int(time.mktime(prefix))
+                    std = time.strptime(jn[:14], "%Y%m%d%H%M%S")
+                    std = int(time.mktime(std))
+                    if prefix <= std:
                         os.remove(p)
                         print("remove picture {}".format(p))
 
@@ -655,27 +667,28 @@ if __name__ == "__main__":
     channel = connection.channel()
     threads_pool = {}
 
-    # loadbalance = Loadbalance(
-    #     status_health_address='{}:2181'.format(ip),
-    #     message_ip=ip,
-    #     message_password='gshl@2019.redis')
-    # loadbalance.start(on_message=on_message)
+    loadbalance = Loadbalance(
+        status_health_address='{}:2181'.format(ip),
+        message_ip=ip,
+        message_password='gshl@2019.redis')
+    loadbalance.start(on_message=on_message)
     #
 
-    camera_info = {
-        "alarmInfo": {
-            "alarmId": "ff808081753c0eec01754c5b697d0019",
-            "params": [
-                {
-                    "paramsNameEn": "numLower",
-                    "paramsValue": "4"
-                }
-            ],
-            "typeNameEn": "beam"
-        },
-        "cameraId": "ff808081753c0eec01754148ecb10011",
-        "liveUrl": "http://120.253.79.50:10800/record/stream_2/20201105/20201105150003/stream_2_record.m3u8",
-    "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
+    # camera_info = {
+    #     "alarmInfo": {
+    #         "alarmId": "ff808081753c0eec01754c5b697d0019",
+    #         "params": [
+    #             {
+    #                 "paramsNameEn": "numLower",
+    #                 "paramsValue": "4"
+    #             }
+    #         ],
+    #         "typeNameEn": "beam"
+    #     },
+    #     "cameraId": "ff808081753c0eec01754148ecb10011",
+        # "liveUrl": "http://120.253.79.50:10800/record/stream_2/20201105/20201105150003/stream_2_record.m3u8",
+        # "liveUrl": "http://192.168.0.98:1934/live?app=demo&stream=123",
+    # "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
     }
     # camera_info = {
     #     "alarmInfo": {
@@ -689,15 +702,15 @@ if __name__ == "__main__":
     #         "typeNameEn": "sensor"
     #     },
     #     "cameraId": "ff808081753c0eec0175414bbdf80017",
-    #     "liveUrl": "http://120.253.79.50:10800/record/stream_3/20201104/20201104110001/stream_3_record.m3u8",
+    #     "liveUrl": "http://120.253.79.50:10800/record/stream_1/20201106/20201106110003/stream_1_record.m3u8",
     #     "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
     # }
-    #
-    camera_id = "ff808081753c0eec01754148ecb10011"
-    scenario = "beam"
-    t = threading.Thread(target=mission, args=(camera_info, scenario))
-    threads_pool[camera_id] = t
-    t.start()
+
+    # camera_id = "ff808081753c0eec01754148ecb10011"
+    # scenario = "beam"
+    # t = threading.Thread(target=mission, args=(camera_info, scenario))
+    # threads_pool[camera_id] = t
+    # t.start()
 
 
 

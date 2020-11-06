@@ -161,21 +161,21 @@ def detect(opt):
             if det is None or len(det) == 0:
                 if scenario == "sensor":
                     IS_VIOLATION = True
-                    res = {"violation": True, "传感器位置错误": False, "无传感器": False, "传感器数目不足": False,
-                           "传感器离顶过近": False, "传感器离墙过近": False, "传感器悬挂过低": False,
+                    res = {"violation": 1, "传感器位置错误": 0, "无传感器": 0, "传感器数目不足": 0,
+                           "传感器离顶过近": 0, "传感器离墙过近": 0, "传感器悬挂过低": 0,
                            }
                 elif scenario == "Huge_rock":
                     IS_VIOLATION = False
-                    res = {"violation": False, "大型煤块": False}
+                    res = {"violation": 0, "大型煤块": 0}
 
                 elif scenario == "beam":
                     IS_VIOLATION = False
-                    res = {"violation": False, "前探梁满足": False, "前探梁": False,
-                           "工人": False, "试探员": False, "液压机": False}
+                    res = {"violation": 0, "前探梁满足": 0, "前探梁": 0,
+                           "工人": 0, "试探员": 0, "液压机": 0}
 
                 elif scenario == "damper":
                     IS_VIOLATION = True
-                    res = {"violation": True, "没有风门": True, "风门打开": True}
+                    res = {"violation": 1, "未检测到风门": 1, "风门打开": 0}
 
 
             if IS_VIOLATION:

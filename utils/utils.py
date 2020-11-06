@@ -1292,7 +1292,7 @@ def sensor_detection(img, detections, names, parameters=None):
                 # cv2.putText(img, "No Enough Sensor Detected.", (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
                 img = cv2ImgAddText(img, "警告：传感器数目不足.", 100, 100, (255, 0, 0), 50)
                 res["violation"] = 1
-                res["无传感器"] = 1
+                res["传感器数目不足"] = 1
 
         # elif names[int(c)] == "pillar":
         #     num_pillar = n
@@ -1356,10 +1356,10 @@ def sensor_detection(img, detections, names, parameters=None):
             res["传感器悬挂过低"] = 1
             res["传感器位置错误"] = 1
 
-        if c[0] < 250:
+        if c[0] < 250 or c[0] > 1750:
             res["violation"] = 1
             # cv2.putText(img, "Sensor is too close to the left wall.", (100, 700), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
-            img = cv2ImgAddText(img, "传感器位置离左墙面过近.", 100, 600, (255, 0, 0), 50)
+            img = cv2ImgAddText(img, "传感器位置离墙面过近.", 100, 600, (255, 0, 0), 50)
             res["传感器离墙过近"] = 1
             res["传感器位置错误"] = 1
 
@@ -1404,13 +1404,13 @@ def beam_detection(img, detections, names, parameters=None):
             img = cv2ImgAddText(img, "检测到{}名工人正在施工.".format(num_worker), 100, 200, (255, 0, 0), 50)
         elif names[int(c)] == "qdr":
             num_operator = n
-            res["violation"] = True
-            res["试探员"] = True
+            res["violation"] = 1
+            res["试探员"] = 1
             img = cv2ImgAddText(img, "检测到试探工人正敲邦问顶.", 100, 300, (255, 0, 0), 50)
         elif names[int(c)] == "yyj":
             num_yyj = n
-            res["violation"] = True
-            res["液压机"] = True
+            res["violation"] = 1
+            res["液压机"] = 1
             img = cv2ImgAddText(img, "检测到液压机施工.", 100, 400, (255, 0, 0), 50)
         else:
             raise ValueError
@@ -1429,29 +1429,29 @@ def beam_detection(img, detections, names, parameters=None):
     for c in det_x:
         if names[int(c[-1])] == "beam":
             if c[2] - c[0] < 50 and c[3] - c[1] > 100:
-                res["violation"] = True
+                res["violation"] = 1
                 img = cv2ImgAddText(img, "提示：前探梁可能未正确安装.", 100, 500, (255, 0, 0), 50)
         else:
             continue
 
     if num_beam == 0:
         img = cv2ImgAddText(img, "暂未检测到前探梁.", 100, 600, (255, 0, 0), 50)
-        res["violation"] = True
-        res["前探梁"] = False
+        res["violation"] = 1
+        res["前探梁"] = 0
 
     return res, detections, img
 
 
 def rock_detection(img, detections, names, parameters=None):
-    res = {"violation": False, "大型煤块": False}
+    res = {"violation": 0, "大型煤块": 0}
     num_rock = 0
     for c in detections[:, -1].unique():
         n = (detections[:, -1] == c).sum()
         if names[int(c)] == "Huge_rock":
             num_rock = n
             if num_rock > 0:
-                res["violation"] = True
-                res["大型煤块"] = True
+                res["violation"] = 1
+                res["大型煤块"] = 1
                 img = cv2ImgAddText(img, "提示：检测到{}个大煤块.".format(num_rock), 100, 500, (255, 0, 0), 50)
             #cv2.putText(img, "Warning : {} big rock detected.".format(num_rock), (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
 
@@ -1460,7 +1460,7 @@ def rock_detection(img, detections, names, parameters=None):
 
 def damper_detection(img, detections, names, parameters=None):
 
-    res = {"violation": False, "没有风门": False, "风门打开": False}
+    res = {"violation": 0, "没有风门": 0, "风门打开": 0}
     num_damper = 0
     for c in detections[:, -1].unique():
         n = (detections[:, -1] == c).sum()
@@ -1468,14 +1468,15 @@ def damper_detection(img, detections, names, parameters=None):
             num_damper = n
 
     if num_damper == 0:
-        res["violation"] = True
+        res["violation"] = 1
+        res["未检测到风门"] = 1
         #cv2.putText(img, "Warning : No damper Detected.", (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
         img = cv2ImgAddText(img, "提示：没有检测到风门.", 100, 300, (255, 0, 0), 50)
     else:
         for o_or_c in detections[:, -2]:
             if o_or_c == 0:
-                res["violation"] = True
-                res["风门打开"] = True
+                res["violation"] = 1
+                res["风门打开"] = 1
                 #cv2.putText(img, "Warning : Damper is Open.", (100, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
                 img = cv2ImgAddText(img, "提示：风门打开.", 100, 500, (255, 0, 0), 50)
             else:
@@ -1532,10 +1533,10 @@ def parse_violation_res(res_json, scenario="sensor", parameters=None):
     if scenario == "beam":
         res = {'证据': [], "time_duration": time_duration}
         total = len(df)
-        one_third = int(total / 2)
-        p1 = df.iloc[:one_third, :]
-        p2 = df.iloc[one_third:, :]
-        case1 = p1[(p1["试探员"] == True) & (p1["工人"] == False)]
+        one_half = int(total / 2)
+        p1 = df.iloc[:one_half, :]
+        p2 = df.iloc[one_half:, :]
+        case1 = p1[(p1["试探员"] == 1) & (p1["工人"] == 0)]
         if len(case1) > 100:
             res["violation"] = "yes"
             res["单个试探员作业"] = 1
@@ -1545,11 +1546,11 @@ def parse_violation_res(res_json, scenario="sensor", parameters=None):
             res["violation"] = "yes"
             res["未检测到试探员作业, 疑似未进行敲邦问顶"] = 1.0
             res["证据"] += list(p1.index)[::10]
-        case3 = df[(df["液压机"]==False) & (df["前探梁"]==True)]
+        case3 = df[(df["液压机"] == 0) & (df["前探梁"] == 1)]
         if case3.sum()["前探梁满足"] < 360:
             res["violation"] = "yes"
             res["未安装足够前探梁"] = 0.8
-            prove2 = list(p2[p2["前探梁"]==True].index)[::10]
+            prove2 = list(p2[p2["前探梁"] == 1].index)[::10]
             res["证据"] += prove2
         res["证据"].sort()
         return json.dumps(res)
