@@ -19,7 +19,7 @@ def detect(opt):
     # get scenario
     scenario = Path(opt.output).name
     if scenario == 'beam':
-        TRACKING_NUM = 360 * 10
+        TRACKING_NUM = 720 * 60
 
     # Initialize
     device = torch_utils.select_device(opt.device)
@@ -69,7 +69,7 @@ def detect(opt):
         w = int(temp_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(temp_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         temp_cap.release()
-        fps = 6
+        fps = 3
         sp = out + "/" + time.strftime("%Y%m%d%H%M%S") + "_" + opt.online_save_name
         print(sp)
         stream_writer = cv2.VideoWriter(sp, fourcc, fps, (w, h))
@@ -229,7 +229,7 @@ def detect(opt):
                         #fourcc = 'mp4v'  # output video codec
                         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
                         #fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                        fps = 6
+                        fps = 3
                         w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                         h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                         vid_writer = cv2.VideoWriter(save_path, fourcc, fps, (w, h))
