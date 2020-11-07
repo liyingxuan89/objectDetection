@@ -318,9 +318,14 @@ def judge(opt):
             continue
 
         jn = jns[0]
-        # if not os.path.exists('inference/output/{}/{}/{}'.format(scenario, camera_id, jn.rstrip(".json"))):
-        #     os.remove('inference/output/{}/{}/{}'.format(scenario, camera_id, jn.rstrip(".json")))
-        #     continue
+        if not os.path.exists('inference/output/{}/{}/{}'.format(scenario, camera_id, jn.rstrip(".json"))):
+            print('inference/output/{}/{}/{}'.format(scenario, camera_id, jn.rstrip(".json")))
+            os.remove('inference/output/{}/{}/{}'.format(scenario, camera_id, jn))
+            continue
+        if not os.path.exists('inference/output/{}/{}/{}'.format(scenario, camera_id, jn.rstrip(".json")+"_0_.png")):
+            print('inference/output/{}/{}/{}'.format(scenario, camera_id, jn.rstrip(".json")+"_0_.png"))
+            os.remove('inference/output/{}/{}/{}'.format(scenario, camera_id, jn))
+            continue
 
         md5_cur = str(subprocess.check_output('md5sum inference/output/{}/{}/{}'.format(scenario, camera_id, jn),
                                               shell=True), 'utf8').split(' ')[0]
@@ -667,28 +672,28 @@ if __name__ == "__main__":
     channel = connection.channel()
     threads_pool = {}
 
-    loadbalance = Loadbalance(
-        status_health_address='{}:2181'.format(ip),
-        message_ip=ip,
-        message_password='gshl@2019.redis')
-    loadbalance.start(on_message=on_message)
+    # loadbalance = Loadbalance(
+    #     status_health_address='{}:2181'.format(ip),
+    #     message_ip=ip,
+    #     message_password='gshl@2019.redis')
+    # loadbalance.start(on_message=on_message)
     #
 
-    # camera_info = {
-    #     "alarmInfo": {
-    #         "alarmId": "ff808081753c0eec01754c5b697d0019",
-    #         "params": [
-    #             {
-    #                 "paramsNameEn": "numLower",
-    #                 "paramsValue": "4"
-    #             }
-    #         ],
-    #         "typeNameEn": "beam"
-    #     },
-    #     "cameraId": "ff808081753c0eec01754148ecb10011",
+    camera_info = {
+        "alarmInfo": {
+            "alarmId": "ff808081753c0eec01754c5b697d0019",
+            "params": [
+                {
+                    "paramsNameEn": "numLower",
+                    "paramsValue": "4"
+                }
+            ],
+            "typeNameEn": "beam"
+        },
+        "cameraId": "ff808081753c0eec01754148ecb10011",
         # "liveUrl": "http://120.253.79.50:10800/record/stream_2/20201105/20201105150003/stream_2_record.m3u8",
-        # "liveUrl": "http://192.168.0.98:1934/live?app=demo&stream=123",
-    # "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
+        "liveUrl": "http://192.168.0.98:1934/live?app=demo&stream=123",
+    "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
     }
     # camera_info = {
     #     "alarmInfo": {
@@ -706,11 +711,11 @@ if __name__ == "__main__":
     #     "videoDownloadUrl": "http://183.221.111.158:10810/nvc/jjtmk/api/v1/record/video/download/12/"
     # }
 
-    # camera_id = "ff808081753c0eec01754148ecb10011"
-    # scenario = "beam"
-    # t = threading.Thread(target=mission, args=(camera_info, scenario))
-    # threads_pool[camera_id] = t
-    # t.start()
+    camera_id = "ff808081753c0eec01754148ecb10011"
+    scenario = "beam"
+    t = threading.Thread(target=mission, args=(camera_info, scenario))
+    threads_pool[camera_id] = t
+    t.start()
 
 
 
